@@ -1,5 +1,6 @@
 import json
 from db import get_connection
+from rag_store import search as search_docs_fn
 
 # OpenAI-compatible tool schemas for DeepSeek
 TOOL_SCHEMAS = [
@@ -46,6 +47,23 @@ TOOL_SCHEMAS = [
                     }
                 },
                 "required": ["sql"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_docs",
+            "description": "在文档库中搜索相关片段，返回匹配的文档内容和来源",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "搜索关键词或问题，用于在文档中检索相关内容",
+                    }
+                },
+                "required": ["query"],
             },
         },
     },
@@ -103,6 +121,18 @@ def run_query(sql: str) -> str:
         return f"SQL 执行错误: {str(e)}"
 
 
+def search_docs(query: str) -> str:
+    hits = search_docs_fn(query)
+    if not hits:
+        return "未找到相关文档内容。"
+    lines = []
+    for h in hits:
+        lines.append(f"[来源: {h['source']}，相关度: {h['score']}]")
+        lines.append(h["content"])
+        lines.append("---")
+    return "\n".join(lines)
+
+
 def execute_tool(name: str, arguments: dict) -> str:
     if name == "list_tables":
         return list_tables()
@@ -110,5 +140,7 @@ def execute_tool(name: str, arguments: dict) -> str:
         return describe_table(arguments["table_name"])
     elif name == "run_query":
         return run_query(arguments["sql"])
+    elif name == "search_docs":
+        return search_docs(arguments["query"])
     else:
         return f"未知工具: {name}"
